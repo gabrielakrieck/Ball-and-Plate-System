@@ -8,10 +8,15 @@ import numpy as np
 import serial
 from imutils.video import VideoStream
 
+global Ymax
+global Ymin
+global Xmax
+global Xmin
+
 # Condicoes Iniciais de Controle
 desired_X = 150 # Centre of the video
 desired_Y = 150 # Centre of the video
-kp = 0.05
+kp = 0.1
 ki = 0.0005
 kd = 0.05
 previous_error_x = 0
@@ -21,8 +26,8 @@ pid_i_x = 0
 pid_i_y = 0
 
 #Calibracao dos motores
-dif=20
-Xi=105 #Posicao inicial do servo X
+dif=40
+Xi=100 #Posicao inicial do servo X
 Yi=85 #Posicao inicial do servo Y
 
 Ymax=Yi+dif #Valor maximo de Y
@@ -61,14 +66,11 @@ def x_axis(valor):
 
 
 # Configuracao da porta serial
-ser = serial.Serial("COM3", 9600);  # Define porta e velocidade de comunicacao
+ser = serial.Serial("COM3", 115200);  # Define porta e velocidade de comunicacao
 print
 ser.portstr;  # Imprime a porta em uso
 print('Aguarde, incializando a porta...');
-time.sleep(3);  # Aguarda 3 segundos
-
-
-
+time.sleep(2);  # Aguarda 3 segundos
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
@@ -102,9 +104,7 @@ if not args.get("video", False):
 else:
     vs = cv2.VideoCapture(args["video"])
 
-# allow the camera or video file to warm up
-time.sleep(1.0)
-
+cont=7;
 # keep looping
 while True:
     # grab the current frame
@@ -112,7 +112,7 @@ while True:
     frame = cv2.flip(frame, -2)
     # create a cropped frame
     crop_frame = frame[0:465, 80:560]  # Crop from {x, y, w, h } => {0, 0, 300, 400}
-    cv2.imshow("cropped", crop_frame)
+    # cv2.imshow("cropped", crop_frame)
     # handle the frame from VideoCapture or VideoStream
 
     frame = crop_frame[1] if args.get("video", False) else crop_frame
@@ -194,8 +194,8 @@ while True:
     # ########################################################################################################
     # PID calculation
 
-    error_Y = (ballY - desired_Y)/1.0
-    error_X = (ballX - desired_X)/1.0
+    error_Y = (ballY - desired_Y)/1.8
+    error_X = (ballX - desired_X)/1.8
 
     # Proportional_XY
     pid_p_y = kp * error_Y
@@ -226,15 +226,11 @@ while True:
 
     servo_y = Yi + PID_Y
     servo_x = Xi + PID_X
-
-
-
-    print ("servoy:" + str(servo_y) + " " + "servox: " + str(servo_x) + "PX: " + str(pid_p_x))  # servo_signal is a float so converting it to integer values
-
-    #Aplica os valores calculados aos motores
     y_axis(servo_y)
     x_axis(servo_x)
-    time.sleep(0.05);
+    print("posicao x:" + X_string + " " + "posicao y:" + Y_string + " " + "erroY: " + previous_errorY_str + " " + "erroX: " + previous_errorX_str)
+    print("servoy:" + str(servo_y) + " " + "servox: " + str(servo_x) + "PX: " + str(pid_p_x))  # servo_signal is a float so converting it to integer values
+    time.sleep(0.02);
 
     # press q to end loop
 
