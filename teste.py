@@ -21,14 +21,17 @@ class ArduinoSerial:
 
 
 class Servo:
+
     # Construtor:
     def __init__(self, ard, initial_value, eixo):
+        self.dif = 25
         self.ard = ard #  atributo do tipo ArduinoSerial
         self.initial_value = initial_value # angulo inicial
         self.eixo = eixo # char indicando qual servo deve se movimentar
         self.max = initial_value+self.dif # valor maximo que o servo pode assumir
         self.min = initial_value-self.dif # valor minimo que o servo pode assumir
         self.move(initial_value) # posiciona o servo no angulo inicial
+
 
 
     # Metodos:
@@ -44,7 +47,7 @@ class Servo:
     def control_move(self, PID_value):  # Funcao que envia o valor do slide X para a porta serial
         val=self.defAngle(PID_value+self.initial_value) # calcula o valor do angulo
         self.ard.arduino.write(bytes(self.eixo, 'UTF-8'))
-        self.ard.write(bytes(chr(int(val)), 'UTF-8'))  # Converte a variavel val de str para int e de int para char (byte)
+        self.ard.arduino.write(bytes(chr(int(val)), 'UTF-8'))  # Converte a variavel val de str para int e de int para char (byte)
 
     # Metodo que movimenta o servo para o angulo especificado
     def move(self, angle):  # Funcao que envia o valor do slide X para a porta serial
@@ -85,7 +88,7 @@ class PID:
         self.timenow = time.time()
         elapsedtime = self.timenow - self.time_previous
 
-        pid_d= self.kd*((error - self.previous_error_y)/elapsedtime)
+        pid_d= self.kd*((error - self.previous_error)/elapsedtime)
 
         # Calculo sinal de controle
         contr_signal = pid_p + self.pid_i + pid_d
@@ -99,6 +102,9 @@ class PID:
 class Vision:
     # Construtor:
     def __init__(self, camera):
+        self.posx = 0
+        self.posy = 0
+
         # construct the argument parse and parse the arguments
         self.ap = argparse.ArgumentParser()
         self.ap.add_argument("-v", "--video",
@@ -122,6 +128,8 @@ class Vision:
 
         self.pts = deque(maxlen=self.args["buffer"])
 
+        self.key = cv2.waitKey(1) & 0xFF
+
         # if a video path was not supplied, grab the reference
         # to the webcam
         if not self.args.get("video", False):
@@ -130,6 +138,9 @@ class Vision:
         # otherwise, grab a reference to the video file
         else:
             self.vs = cv2.VideoCapture(self.args["video"])
+
+        self.frame = self.vs.read()
+
 
     # Metodo que captura e corta o frame
     def Frame_Capture(self):
@@ -211,15 +222,22 @@ class Vision:
 
         # show the frame to our screen
         cv2.imshow("Frame", self.frame)
-        #key = cv2.waitKey(1) & 0xFF
-        return [ballX, ballY]
+        #self.key = cv2.waitKey(1) & 0xFF
+        self.posx=ballX
+        self.posy=ballY
+
+    def getPosx(self):
+        return self.posx
+
+    def getPosy(self):
+        return self.posy
 
 # Inicio do programa
 
 # Inicializacoes
 setpoint = [150, 150]
 
-arduino = ArduinoSerial("COM3", 115200) # Inicializacao da interface serial do arduino
+arduino = ArduinoSerial("COM4", 115200) # Inicializacao da interface serial do arduino
 servo_x = Servo(arduino, 100, 'x') # Inicializacao do servo x
 servo_y = Servo(arduino, 85, 'y') # Inicializacao do servo y
 pid_x = PID(0.05, 0, 0.05, servo_x, 1.8) # Inicializacao do controlador do eixo X
@@ -236,17 +254,23 @@ while True:
     if camera.frame is None:
         break
 
-    position = camera.getBallPosition # recebe valor posicao da bola(x,y)
-    contrX = pid_x.control_code(position[2],setpoint[1]) # recebe o sinal de controle do eixo X
-    contrY = pid_y.control_code(position[2], setpoint[2]) # recebe o sinal de controle do eixo Y
+
+    camera.getBallPosition # atualiza os valores de posicao da bola
+    posx = camera.getPosx()
+    posy = camera.getPosy()
+    setpointx = setpoint[0]
+    setpointy = setpoint[1]
+
+    contrX = pid_x.control_code(posx, setpointx) # recebe o sinal de controle do eixo X
+    contrY = pid_y.control_code(posy, setpointy) # recebe o sinal de controle do eixo Y
     servo_x.control_move(contrX) # servo x atua no sistema
     servo_y.control_move(contrY) # servo y atua no sistema
     time.sleep(0.02);
 
     # press q to end loop
     # if the 'q' key is pressed, stop the loop
-    if np.key == ord("q"):
-        break
+    #if np.key == ord("q"):
+    #    break
 
 # if we are not using a video file, stop the camera video stream
 if not camera.args.get("video", False):
